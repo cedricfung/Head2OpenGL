@@ -24,7 +24,7 @@
   #version 130\n \
   in vec4 position; \
   in vec4 color; \
-  smooth out vec4 vColor; \
+  noperspective out vec4 vColor; \
   void main() { \
     gl_Position = position; \
     vColor = color; \
@@ -32,24 +32,35 @@
 
 #define FRAGMENT_SHADER " \
   #version 130\n \
-  smooth in vec4 vColor; \
-  out vec4 outColor; \
+  uniform float loop; \
+  uniform float time; \
+  noperspective in vec4 vColor; \
   void main() { \
-    outColor = vColor; \
+    float lerp = mod(time, loop) / loop; \
+    vec4 vColor = mix(vColor, vec4(1, 1, 0, 0.2), lerp); \
+    gl_FragColor = vColor; \
   }"
 
 
 const GLfloat sValues[] = {
-  0.0f, 0.5f, 0.0f, 1.0f,
-  -0.5f, -0.5f, 0.0f, 1.0f,
-  0.5f, -0.5f, 0.0f, 1.0f,
-  1.0f, 0.0f, 0.0f, 1.0f,
-  0.0f, 1.0f, 0.0f, 1.0f,
-  0.0f, 0.0f, 1.0f, 1.0f,
+  0.0f, 0.5f,
+  -0.5f, -0.5f,
+  0.5f, -0.5f,
+  0.7f, 0.0f,
+  0.1f, 0.8f,
+  0.9f, -0.9f,
+  1.0f, 0.0f, 0.0f,
+  0.0f, 1.0f, 0.0f,
+  0.0f, 0.0f, 1.0f,
+  1.0f, 0.0f, 0.0f,
+  0.0f, 1.0f, 0.0f,
+  0.0f, 0.0f, 1.0f,
 };
 
 
 static GLuint sProgram;
+static GLuint sLocLoop;
+static GLuint sLocTime;
 static GLuint sLocPosition;
 static GLuint sLocColor;
 static GLuint sValuesBuffer;
@@ -88,6 +99,8 @@ void Init(void)
   glDeleteShader(vertexShader);
   glDeleteShader(fragmentShader);
 
+  sLocLoop = glGetUniformLocation(sProgram, "loop");
+  sLocTime = glGetUniformLocation(sProgram, "time");
   sLocPosition = glGetAttribLocation(sProgram, "position");
   sLocColor = glGetAttribLocation(sProgram, "color");
 
@@ -97,6 +110,14 @@ void Init(void)
   glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
+void GL_version(void)
+{
+  int OpenGLVersion[2];
+  glGetIntegerv(GL_MAJOR_VERSION, &OpenGLVersion[0]);
+  glGetIntegerv(GL_MINOR_VERSION, &OpenGLVersion[1]);
+  printf("OpenGL version: %s, %d, %d\n", glGetString(GL_VERSION), OpenGLVersion[0], OpenGLVersion[1]);
+}
+
 void GLUT_display(void)
 {
   glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -104,13 +125,16 @@ void GLUT_display(void)
 
   glUseProgram(sProgram);
 
+  glUniform1f(sLocLoop, 0.5);
+  glUniform1f(sLocTime, glutGet(GLUT_ELAPSED_TIME) / 10000.0f);
+
   glBindBuffer(GL_ARRAY_BUFFER, sValuesBuffer);
   glEnableVertexAttribArray(sLocPosition);
-  glVertexAttribPointer(sLocPosition, 4, GL_FLOAT, GL_FALSE, 0, 0);
+  glVertexAttribPointer(sLocPosition, 2, GL_FLOAT, GL_FALSE, 0, 0);
   glEnableVertexAttribArray(sLocColor);
-  glVertexAttribPointer(sLocColor, 4, GL_FLOAT, GL_FALSE, 0, (void *)48);
+  glVertexAttribPointer(sLocColor, 3, GL_FLOAT, GL_FALSE, 0, (void *)48);
 
-  glDrawArrays(GL_TRIANGLES, 0, 3);
+  glDrawArrays(GL_TRIANGLES, 0, 6);
 
   for (GLenum err = glGetError(); err != GL_NO_ERROR; err = glGetError()) {
     fprintf(stderr, "%d: %s\n", err, gluErrorString(err));
@@ -122,11 +146,20 @@ void GLUT_display(void)
   glUseProgram(0);
 
   glutSwapBuffers();
+  glutPostRedisplay();
 }
 
 void GLUT_reshape(int w, int h)
 {
   glViewport(0, 0, w, h);
+}
+
+void GLUT_keyboard(unsigned char key, int x, int y)
+{
+  if (key == 27) {
+    printf("keyboard: %d, %d, %d\n", key, x, y);
+    exit(0);
+  }
 }
 
 int main(int argc, char *argv[])
@@ -139,7 +172,9 @@ int main(int argc, char *argv[])
 
   glutDisplayFunc(GLUT_display);
   glutReshapeFunc(GLUT_reshape);
+  glutKeyboardFunc(GLUT_keyboard);
 
+  GL_version();
   Init();
 
   glutMainLoop();
